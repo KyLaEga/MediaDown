@@ -37,7 +37,19 @@ class UniversalMediaDownloader:
             filename = filename[:200]
         return filename
 
+    def _rewrite_url(self, url):
+        """Перезаписываем URL известных зеркал на оригинальные для корректной работы yt-dlp"""
+        import re
+        if 'exporntoons.net/watch/' in url:
+            match = re.search(r'watch/(-?\d+_\d+)', url)
+            if match:
+                return f"https://vk.com/video{match.group(1)}"
+        if 'xv-ru.com' in url:
+            return url.replace('xv-ru.com', 'xvideos.com')
+        return url
+
     def download_media(self, url, output_dir, media_type='auto', format_str='best', quality='лучшее', progress_callback=None, counter=None):
+        url = self._rewrite_url(url)
         self.pause_event.wait()
         if self.cancelled:
             raise Exception("Отменено")
@@ -78,7 +90,7 @@ class UniversalMediaDownloader:
             # Extract digits, e.g. '2160p (4K)' -> '2160'
             match = re.search(r'\d+', quality)
             if match:
-                height_limit = f"[height<={match.group()}]"
+                height_limit = f"[height<=?{match.group()}]"
 
         has_atomic_parsley = shutil.which('AtomicParsley') is not None or shutil.which('atomicparsley') is not None
 
@@ -248,8 +260,9 @@ class UniversalMediaDownloader:
         if progress_callback:
             progress_callback(0, 100, "Загрузка галереи...", 0.0)
             
+        import sys
         cmd = [
-            'gallery-dl',
+            sys.executable, '-m', 'gallery_dl',
             '-d', output_dir,
             url
         ]
