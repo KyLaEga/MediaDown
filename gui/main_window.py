@@ -629,9 +629,26 @@ class MainWindow(QWidget):
         self.settings['output_dir'] = self.output_dir_entry.text()
         self.save_settings()
         
+        # Собираем существующие активные или завершенные ссылки
+        existing_urls = set()
+        for i in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(i)
+            url = item.text(0)
+            status = item.text(1)
+            if status not in ["Отменено", "Ошибка"]:
+                existing_urls.add(url)
+                
+        skipped_count = 0
+        
         for url in urls:
             if url.startswith('www.'):
                 url = 'http://' + url
+                
+            if url in existing_urls:
+                skipped_count += 1
+                continue
+                
+            existing_urls.add(url)
                 
             task_id = str(uuid.uuid4())
             item = QTreeWidgetItem(self.tree)
@@ -651,6 +668,9 @@ class MainWindow(QWidget):
             }
             self.task_data_map[task_id] = task_data
             self.download_queue.put(task_data)
+            
+        if skipped_count > 0:
+            QMessageBox.information(self, "Дубликаты пропущены", f"Пропущено дубликатов: {skipped_count}\nЭти ссылки уже есть в активной очереди или успешно скачаны.")
             
         with self.worker_cond:
             self.worker_cond.notify_all()
