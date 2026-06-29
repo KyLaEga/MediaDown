@@ -36,7 +36,7 @@ class UniversalMediaDownloader:
             filename = filename[:200]
         return filename
 
-    def download_media(self, url, output_dir, media_type='auto', format_str='best', progress_callback=None, counter=None):
+    def download_media(self, url, output_dir, media_type='auto', format_str='best', quality='лучшее', progress_callback=None, counter=None):
         self.pause_event.wait()
         if self.cancelled:
             raise Exception("Отменено")
@@ -49,7 +49,7 @@ class UniversalMediaDownloader:
             return self._download_gallery(url, output_dir, progress_callback)
         else:
             try:
-                return self._download_ytdlp(url, output_dir, media_type, format_str, progress_callback)
+                return self._download_ytdlp(url, output_dir, media_type, format_str, quality, progress_callback)
             except Exception as e:
                 if media_type == 'auto':
                     # Fallback to gallery-dl
@@ -57,16 +57,27 @@ class UniversalMediaDownloader:
                 else:
                     raise e
 
-    def _download_ytdlp(self, url, output_dir, media_type, format_str, progress_callback):
+    def _download_ytdlp(self, url, output_dir, media_type, format_str, quality, progress_callback):
         ydl_opts = {
             'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
-            'noplaylist': False,
+            'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
             'color': 'never',
             'no_color': True,
             'writethumbnail': True,
+            'nocheckcertificate': True,
+            'concurrent_fragment_downloads': 5,
+            'socket_timeout': 10,
         }
+
+        # Parse height limit from quality
+        height_limit = ""
+        if quality != 'лучшее':
+            # Extract digits, e.g. '2160p (4K)' -> '2160'
+            match = re.search(r'\d+', quality)
+            if match:
+                height_limit = f"[height<={match.group()}]"
 
         if media_type == 'audio':
             ydl_opts['format'] = 'bestaudio/best'
@@ -81,10 +92,10 @@ class UniversalMediaDownloader:
             ]
         elif media_type == 'video' or media_type == 'auto':
             if format_str == 'best':
-                ydl_opts['format'] = 'bestvideo+bestaudio/best'
+                ydl_opts['format'] = f'bestvideo{height_limit}+bestaudio/best{height_limit}/best'
             else:
                 # E.g. 'mp4'
-                ydl_opts['format'] = f'bestvideo[ext={format_str}]+bestaudio[ext=m4a]/best[ext={format_str}]/best'
+                ydl_opts['format'] = f'bestvideo{height_limit}[ext={format_str}]+bestaudio[ext=m4a]/best{height_limit}[ext={format_str}]/best'
                 ydl_opts['merge_output_format'] = format_str
                 
             if 'postprocessors' not in ydl_opts:
@@ -94,18 +105,24 @@ class UniversalMediaDownloader:
                 {'key': 'EmbedThumbnail'},
             ])
 
+        last_update = [0.0]
+
         def hook(d):
             self.pause_event.wait()
             if self.cancelled:
                 raise Exception("Отменено пользователем")
             
             if d['status'] == 'downloading':
-                if progress_callback:
-                    total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
-                    downloaded_bytes = d.get('downloaded_bytes', 0)
-                    if total_bytes > 0:
-                        percent = (downloaded_bytes / total_bytes) * 100
-                        progress_callback(int(percent), 100, f"Загрузка: {d.get('_percent_str', '0%')} - {d.get('_speed_str', '')}")
+                # Throttle progress callbacks to at most once per 200ms to avoid UI thread lag
+                now = time.time()
+                if now - last_update[0] >= 0.2:
+                    last_update[0] = now
+                    if progress_callback:
+                        total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+                        downloaded_bytes = d.get('downloaded_bytes', 0)
+                        if total_bytes > 0:
+                            percent = (downloaded_bytes / total_bytes) * 100
+                            progress_callback(int(percent), 100, f"Загрузка: {d.get('_percent_str', '0%')} - {d.get('_speed_str', '')}")
             elif d['status'] == 'finished':
                 if progress_callback:
                     progress_callback(100, 100, "Обработка файла...")

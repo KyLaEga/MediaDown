@@ -133,6 +133,7 @@ class MainWindow(QWidget):
             'output_dir': os.path.expanduser('~/Downloads/Media'),
             'media_type': 'auto',
             'format_str': 'best',
+            'quality': 'лучшее',
             'theme': 'Темная',
             'max_tasks': 3,
             'rate_limit_delay': 1.0
@@ -160,6 +161,7 @@ class MainWindow(QWidget):
         self.apply_theme(self.settings.get('theme', 'Темная'))
         
         self.create_ui()
+        self._on_media_setting_changed(None)
         
     def load_settings(self):
         if os.path.exists(self.settings_file):
@@ -252,6 +254,12 @@ class MainWindow(QWidget):
         self.format_str_combo.setCurrentText(self.settings.get('format_str', 'best'))
         self.format_str_combo.currentTextChanged.connect(self._on_media_setting_changed)
         format_layout.addRow("Формат:", self.format_str_combo)
+        
+        self.quality_combo = QComboBox()
+        self.quality_combo.addItems(['лучшее', '2160p (4K)', '1440p (2K)', '1080p', '720p', '480p', '360p'])
+        self.quality_combo.setCurrentText(self.settings.get('quality', 'лучшее'))
+        self.quality_combo.currentTextChanged.connect(self._on_media_setting_changed)
+        format_layout.addRow("Качество:", self.quality_combo)
         
         sidebar_layout.addLayout(format_layout)
         
@@ -437,8 +445,15 @@ class MainWindow(QWidget):
         self.btn_clear.setIconSize(QSize(16, 16))
 
     def _on_media_setting_changed(self, _):
-        self.settings['media_type'] = self.media_type_combo.currentText()
+        media_type = self.media_type_combo.currentText()
+        self.settings['media_type'] = media_type
         self.settings['format_str'] = self.format_str_combo.currentText()
+        self.settings['quality'] = self.quality_combo.currentText()
+        
+        # Разрешаем выбор качества только для видео или авто
+        is_video_or_auto = media_type in ['video', 'auto']
+        self.quality_combo.setEnabled(is_video_or_auto)
+        
         self.save_settings()
             
     def update_network_settings(self):
@@ -607,6 +622,7 @@ class MainWindow(QWidget):
         # Сохраняем текущие настройки
         self.settings['media_type'] = self.media_type_combo.currentText()
         self.settings['format_str'] = self.format_str_combo.currentText()
+        self.settings['quality'] = self.quality_combo.currentText()
         self.settings['output_dir'] = self.output_dir_entry.text()
         self.save_settings()
         
@@ -627,6 +643,7 @@ class MainWindow(QWidget):
                 'url': url,
                 'media_type': self.settings['media_type'],
                 'format_str': self.settings['format_str'],
+                'quality': self.settings.get('quality', 'лучшее'),
                 'output_dir': self.settings['output_dir']
             }
             self.task_data_map[task_id] = task_data
@@ -881,6 +898,7 @@ class MainWindow(QWidget):
                     output_dir=task['output_dir'],
                     media_type=task['media_type'],
                     format_str=task['format_str'],
+                    quality=task.get('quality', 'лучшее'),
                     progress_callback=progress_callback
                 )
 
