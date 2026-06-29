@@ -4,6 +4,7 @@ import time
 import subprocess
 import json
 import re
+import shutil
 
 import yt_dlp
 
@@ -79,6 +80,8 @@ class UniversalMediaDownloader:
             if match:
                 height_limit = f"[height<={match.group()}]"
 
+        has_atomic_parsley = shutil.which('AtomicParsley') is not None or shutil.which('atomicparsley') is not None
+
         if media_type == 'audio':
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [
@@ -88,8 +91,9 @@ class UniversalMediaDownloader:
                     'preferredquality': '192',
                 },
                 {'key': 'FFmpegMetadata'},
-                {'key': 'EmbedThumbnail'},
             ]
+            if format_str == 'mp3' or format_str == 'best' or (format_str == 'm4a' and has_atomic_parsley):
+                ydl_opts['postprocessors'].append({'key': 'EmbedThumbnail'})
         elif media_type == 'video' or media_type == 'auto':
             if format_str == 'best':
                 ydl_opts['format'] = f'bestvideo{height_limit}+bestaudio/best{height_limit}/best'
@@ -100,10 +104,11 @@ class UniversalMediaDownloader:
                 
             if 'postprocessors' not in ydl_opts:
                 ydl_opts['postprocessors'] = []
-            ydl_opts['postprocessors'].extend([
-                {'key': 'FFmpegMetadata'},
-                {'key': 'EmbedThumbnail'},
-            ])
+            ydl_opts['postprocessors'].append({'key': 'FFmpegMetadata'})
+            
+            # Embed thumbnail only if format is mkv (uses ffmpeg) or if we have AtomicParsley for mp4/best
+            if format_str == 'mkv' or ((format_str == 'mp4' or format_str == 'best') and has_atomic_parsley):
+                ydl_opts['postprocessors'].append({'key': 'EmbedThumbnail'})
 
         last_update = [0.0]
 
@@ -129,24 +134,27 @@ class UniversalMediaDownloader:
 
         ydl_opts['progress_hooks'] = [hook]
 
+        info = None
+        file_path = None
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
+                # 1. Извлекаем информацию без скачивания, чтобы точно определить путь к файлу
+                info = ydl.extract_info(url, download=False)
                 title = info.get('title', 'Unknown')
+                file_path = ydl.prepare_filename(info)
                 
-                # Попытка получить точный путь к файлу
-                file_path = None
-                requested_downloads = info.get('requested_downloads')
-                if requested_downloads and len(requested_downloads) > 0:
-                    file_path = requested_downloads[0].get('filepath')
-                
-                if not file_path:
-                    file_path = ydl.prepare_filename(info)
-                    # Если было извлечение аудио, расширение может отличаться от изначального
-                    if media_type == 'audio':
+                # Дорабатываем путь в зависимости от формата
+                if media_type == 'audio':
+                    base, _ = os.path.splitext(file_path)
+                    ext = format_str if format_str != 'best' else 'mp3'
+                    file_path = f"{base}.{ext}"
+                elif media_type == 'video' or media_type == 'auto':
+                    if format_str != 'best':
                         base, _ = os.path.splitext(file_path)
-                        ext = format_str if format_str != 'best' else 'mp3'
-                        file_path = f"{base}.{ext}"
+                        file_path = f"{base}.{format_str}"
+
+                # 2. Запускаем скачивание на основе извлеченной информации
+                ydl.process_info(info)
 
                 return {
                     'title': title,
@@ -157,6 +165,18 @@ class UniversalMediaDownloader:
         except Exception as e:
             if "Отменено" in str(e):
                 raise
+            
+            # Если произошла ошибка (например, сбой вшивания обложки AtomicParsley),
+            # но сам медиа-файл скачан и лежит на диске, мы считаем загрузку успешной.
+            if file_path and os.path.exists(file_path):
+                title = info.get('title', 'Unknown') if info else 'Unknown'
+                return {
+                    'title': title,
+                    'pages': 1,
+                    'size': 0,
+                    'file_path': file_path
+                }
+                
             raise Exception(f"Ошибка yt-dlp: {e}")
 
     def _download_gallery(self, url, output_dir, progress_callback):

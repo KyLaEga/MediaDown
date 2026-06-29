@@ -22,6 +22,8 @@ def main():
     # Создать и показать главное окно
     window = MainWindow()
     window.show()
+    window.raise_()
+    window.activateWindow()
     
     # Запустить цикл обработки событий
     sys.exit(app.exec())
