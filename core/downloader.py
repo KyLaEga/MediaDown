@@ -156,11 +156,28 @@ class UniversalMediaDownloader:
                 # 2. Запускаем скачивание на основе извлеченной информации
                 ydl.process_info(info)
 
+                # Вычисляем итоговое разрешение и формат
+                height = info.get('height')
+                ext = None
+                if file_path:
+                    _, ext_file = os.path.splitext(file_path)
+                    if ext_file:
+                        ext = ext_file.lstrip('.').lower()
+                if not ext:
+                    ext = info.get('ext')
+                
+                quality_desc = ""
+                if height:
+                    quality_desc = f"{height}p"
+                if ext:
+                    quality_desc = f"{quality_desc} ({ext})" if quality_desc else ext
+
                 return {
                     'title': title,
                     'pages': 1,
                     'size': 0,
-                    'file_path': file_path
+                    'file_path': file_path,
+                    'quality_desc': quality_desc
                 }
         except Exception as e:
             if "Отменено" in str(e):
@@ -170,11 +187,24 @@ class UniversalMediaDownloader:
             # но сам медиа-файл скачан и лежит на диске, мы считаем загрузку успешной.
             if file_path and os.path.exists(file_path):
                 title = info.get('title', 'Unknown') if info else 'Unknown'
+                
+                height = info.get('height') if info else None
+                ext = None
+                _, ext_file = os.path.splitext(file_path)
+                if ext_file:
+                    ext = ext_file.lstrip('.').lower()
+                quality_desc = ""
+                if height:
+                    quality_desc = f"{height}p"
+                if ext:
+                    quality_desc = f"{quality_desc} ({ext})" if quality_desc else ext
+                    
                 return {
                     'title': title,
                     'pages': 1,
                     'size': 0,
-                    'file_path': file_path
+                    'file_path': file_path,
+                    'quality_desc': quality_desc
                 }
                 
             raise Exception(f"Ошибка yt-dlp: {e}")
@@ -237,7 +267,8 @@ class UniversalMediaDownloader:
                 'title': f"Gallery_{int(time.time())}",
                 'pages': downloaded,
                 'size': 0,
-                'file_path': output_dir
+                'file_path': output_dir,
+                'quality_desc': f"{downloaded} фото"
             }
         except Exception as e:
             raise Exception(f"Ошибка gallery-dl: {e}")

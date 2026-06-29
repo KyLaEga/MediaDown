@@ -684,8 +684,11 @@ class MainWindow(QWidget):
                 item.setToolTip(1, f"Загружены не все страницы ({frac})")
                 item.setText(2, "100%")
             elif success:
-                item.setText(1, "Завершено")
-                item.setToolTip(1, "Загрузка успешно завершена")
+                status_text = "Завершено"
+                if msg:
+                    status_text += f" ({msg})"
+                item.setText(1, status_text)
+                item.setToolTip(1, f"Загрузка успешно завершена: {msg}" if msg else "Загрузка успешно завершена")
                 item.setText(2, "100%")
             else:
                 item.setText(1, "Ошибка")
@@ -906,11 +909,12 @@ class MainWindow(QWidget):
 
                 if result:
                     file_path = result.get('file_path')
+                    quality_desc = result.get('quality_desc', '')
                     if file_path:
                         with self.download_lock:
                             if task_id in self.task_data_map:
                                 self.task_data_map[task_id]['file_path'] = file_path
-                    self.signals.finished.emit(task_id, True, "")
+                    self.signals.finished.emit(task_id, True, quality_desc)
                 else:
                     self.signals.finished.emit(task_id, False, "Ошибка неизвестна")
             except Exception as e:
