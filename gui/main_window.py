@@ -389,9 +389,11 @@ class MainWindow(QWidget):
         
         tree_header = self.tree.header()
         tree_header.setSectionResizeMode(0, QHeaderView.Stretch)
-        tree_header.setSectionResizeMode(1, QHeaderView.Fixed)
-        tree_header.setSectionResizeMode(2, QHeaderView.Fixed)
+        tree_header.setSectionResizeMode(1, QHeaderView.Interactive)
+        tree_header.setSectionResizeMode(2, QHeaderView.Interactive)
         tree_header.setStretchLastSection(False)
+        self.tree.setColumnWidth(1, 150)
+        self.tree.setColumnWidth(2, 90)
         
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.show_context_menu)
