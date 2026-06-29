@@ -712,7 +712,7 @@ class MainWindow(QWidget):
         for i in range(total):
             item = self.tree.topLevelItem(i)
             status = item.text(1)
-            if status in ["Завершено", "Отменено", "Ошибка", "Частично"]:
+            if status.startswith("Завершено") or status in ["Отменено", "Ошибка", "Частично"]:
                 completed += 1
             elif status not in ["Ожидание..."]:
                 active += 1
@@ -777,7 +777,7 @@ class MainWindow(QWidget):
 
             
             # Для завершенных файлов
-            if status in ["Завершено", "Частично"] and file_path and os.path.exists(file_path):
+            if (status.startswith("Завершено") or status == "Частично") and file_path and os.path.exists(file_path):
                 action_open_file = menu.addAction("Открыть файл")
                 action_show_folder = menu.addAction("Показать в папке")
                 menu.addSeparator()
@@ -804,7 +804,7 @@ class MainWindow(QWidget):
             
             if action == action_open:
                 QDesktopServices.openUrl(QUrl(item.text(0)))
-            elif status in ["Завершено", "Частично"] and file_path and os.path.exists(file_path):
+            elif (status.startswith("Завершено") or status == "Частично") and file_path and os.path.exists(file_path):
                 if action == action_open_file:
                     self.open_file(file_path)
                 elif action == action_show_folder:
