@@ -158,6 +158,23 @@ class UniversalMediaDownloader:
 
                 # Вычисляем итоговое разрешение и формат
                 height = info.get('height')
+                
+                # Переименовываем файл, добавляя разрешение в конец (например, _1080p)
+                if height and file_path and os.path.exists(file_path):
+                    base, ext_file = os.path.splitext(file_path)
+                    new_file_path = f"{base}_{height}p{ext_file}"
+                    try:
+                        os.rename(file_path, new_file_path)
+                        file_path = new_file_path
+                        
+                        # Также переименуем обложку .jpg, .png, .webp, если она есть рядом
+                        for thumb_ext in ['.jpg', '.png', '.webp']:
+                            thumb_path = f"{base}{thumb_ext}"
+                            if os.path.exists(thumb_path):
+                                os.rename(thumb_path, f"{base}_{height}p{thumb_ext}")
+                    except Exception as re_err:
+                        print(f"Ошибка переименования файла: {re_err}")
+
                 ext = None
                 if file_path:
                     _, ext_file = os.path.splitext(file_path)
@@ -187,12 +204,28 @@ class UniversalMediaDownloader:
             # но сам медиа-файл скачан и лежит на диске, мы считаем загрузку успешной.
             if file_path and os.path.exists(file_path):
                 title = info.get('title', 'Unknown') if info else 'Unknown'
-                
                 height = info.get('height') if info else None
+                
+                # Переименовываем файл на случай падения пост-процессора
+                if height:
+                    base, ext_file = os.path.splitext(file_path)
+                    new_file_path = f"{base}_{height}p{ext_file}"
+                    try:
+                        os.rename(file_path, new_file_path)
+                        file_path = new_file_path
+                        
+                        for thumb_ext in ['.jpg', '.png', '.webp']:
+                            thumb_path = f"{base}{thumb_ext}"
+                            if os.path.exists(thumb_path):
+                                os.rename(thumb_path, f"{base}_{height}p{thumb_ext}")
+                    except Exception as re_err:
+                        print(f"Ошибка переименования файла: {re_err}")
+
                 ext = None
-                _, ext_file = os.path.splitext(file_path)
-                if ext_file:
-                    ext = ext_file.lstrip('.').lower()
+                if file_path:
+                    _, ext_file = os.path.splitext(file_path)
+                    if ext_file:
+                        ext = ext_file.lstrip('.').lower()
                 quality_desc = ""
                 if height:
                     quality_desc = f"{height}p"
