@@ -140,7 +140,7 @@ class MainWindow(QWidget):
         }
         self.load_settings()
         
-        # Запуск фоновых потоков загрузчиков по количеству max_comics
+        # Запуск фоновых потоков загрузчиков по количеству max_tasks
         self.worker_threads = []
         for _ in range(self.settings.get('max_tasks', 3)):
             t = threading.Thread(target=self._worker_thread, daemon=True)
@@ -329,7 +329,7 @@ class MainWindow(QWidget):
         input_card_layout.addWidget(lbl_input_title)
         
         self.url_entry = QPlainTextEdit()
-        self.url_entry.setPlaceholderText("Вставьте ссылки на комиксы (каждая с новой строки)...")
+        self.url_entry.setPlaceholderText("Вставьте ссылки на медиа (каждая с новой строки)...")
         self.url_entry.setMaximumHeight(80)
         input_card_layout.addWidget(self.url_entry)
         
@@ -568,7 +568,7 @@ class MainWindow(QWidget):
         super().closeEvent(event)
 
     def select_output_dir(self):
-        folder = QFileDialog.getExistingDirectory(self, "Выберите папку для комиксов", self.output_dir_entry.text())
+        folder = QFileDialog.getExistingDirectory(self, "Выберите папку для сохранения", self.output_dir_entry.text())
         if folder:
             self.output_dir_entry.setText(folder)
             self.output_dir_entry.setCursorPosition(len(folder))
@@ -726,14 +726,14 @@ class MainWindow(QWidget):
 <h3>Как пользоваться?</h3>
 <ol>
 <li>Вставьте одну или несколько ссылок (по одной на строку) в поле ввода.</li>
-<li>Укажите нужный формат (<b>PDF</b> для удобного чтения или <b>CBZ</b> для оригинального архива).</li>
-<li>Нажмите <b>Скачать</b>. Программа сама найдет все картинки и соберет их.</li>
+<li>Укажите нужный <b>тип медиа</b> (auto, video, audio или gallery) и желаемый <b>формат/качество</b>.</li>
+<li>Нажмите <b>Скачать</b>. Программа автоматически загрузит медиа-файлы с помощью yt-dlp или gallery-dl.</li>
 </ol>
 <h3>Частые ошибки:</h3>
 <ul>
-<li><b>Не найдено изображений:</b> На странице нет картинок, либо сайт использует сложную защиту от ботов (Cloudflare, капча), которую программа пока не может обойти.</li>
-<li><b>Connection timeout:</b> Сайт недоступен, либо блокируется провайдером. Попробуйте использовать VPN.</li>
-<li><b>403 Forbidden / 503 Service Unavailable:</b> Сработала защита от скачивания на сервере. Попробуйте уменьшить количество потоков (до 1-2) и увеличить задержку (до 2-3 секунд).</li>
+<li><b>Сайт не поддерживается:</b> Убедитесь, что сайт поддерживается библиотеками yt-dlp или gallery-dl.</li>
+<li><b>Connection timeout / Ошибка сети:</b> Сайт заблокирован или недоступен. Попробуйте использовать VPN.</li>
+<li><b>Ошибка авторизации / Защита:</b> Некоторые сайты требуют авторизации или защищены Cloudflare, которую программа не может обойти автоматически.</li>
 </ul>
         """
         QMessageBox.information(self, "Помощь и решения проблем", help_text)
