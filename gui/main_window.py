@@ -676,6 +676,7 @@ class MainWindow(QWidget):
             item.setToolTip(1, text)
             item.setText(2, percent_str)
         self.task_speeds[task_id] = speed
+        self.update_queue_count()
 
     def download_finished(self, task_id, success, msg):
         self.task_speeds.pop(task_id, None)
