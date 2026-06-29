@@ -63,15 +63,22 @@ class UniversalMediaDownloader:
             'noplaylist': False,
             'quiet': True,
             'no_warnings': True,
+            'color': 'never',
+            'no_color': True,
+            'writethumbnail': True,
         }
 
         if media_type == 'audio':
             ydl_opts['format'] = 'bestaudio/best'
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': format_str if format_str != 'best' else 'mp3',
-                'preferredquality': '192',
-            }]
+            ydl_opts['postprocessors'] = [
+                {
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': format_str if format_str != 'best' else 'mp3',
+                    'preferredquality': '192',
+                },
+                {'key': 'FFmpegMetadata'},
+                {'key': 'EmbedThumbnail'},
+            ]
         elif media_type == 'video' or media_type == 'auto':
             if format_str == 'best':
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
@@ -79,6 +86,13 @@ class UniversalMediaDownloader:
                 # E.g. 'mp4'
                 ydl_opts['format'] = f'bestvideo[ext={format_str}]+bestaudio[ext=m4a]/best[ext={format_str}]/best'
                 ydl_opts['merge_output_format'] = format_str
+                
+            if 'postprocessors' not in ydl_opts:
+                ydl_opts['postprocessors'] = []
+            ydl_opts['postprocessors'].extend([
+                {'key': 'FFmpegMetadata'},
+                {'key': 'EmbedThumbnail'},
+            ])
 
         def hook(d):
             self.pause_event.wait()
@@ -102,10 +116,26 @@ class UniversalMediaDownloader:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 title = info.get('title', 'Unknown')
+                
+                # Попытка получить точный путь к файлу
+                file_path = None
+                requested_downloads = info.get('requested_downloads')
+                if requested_downloads and len(requested_downloads) > 0:
+                    file_path = requested_downloads[0].get('filepath')
+                
+                if not file_path:
+                    file_path = ydl.prepare_filename(info)
+                    # Если было извлечение аудио, расширение может отличаться от изначального
+                    if media_type == 'audio':
+                        base, _ = os.path.splitext(file_path)
+                        ext = format_str if format_str != 'best' else 'mp3'
+                        file_path = f"{base}.{ext}"
+
                 return {
                     'title': title,
                     'pages': 1,
-                    'size': 0
+                    'size': 0,
+                    'file_path': file_path
                 }
         except Exception as e:
             if "Отменено" in str(e):
@@ -132,6 +162,17 @@ class UniversalMediaDownloader:
                 universal_newlines=True
             )
             
+            import queue
+            output_queue = queue.Queue()
+            
+            def read_output(pipe):
+                for line in iter(pipe.readline, ''):
+                    output_queue.put(line)
+                pipe.close()
+                
+            reader_thread = threading.Thread(target=read_output, args=(process.stdout,), daemon=True)
+            reader_thread.start()
+            
             downloaded = 0
             while True:
                 self.pause_event.wait()
@@ -139,15 +180,18 @@ class UniversalMediaDownloader:
                     process.terminate()
                     raise Exception("Отменено")
                     
-                line = process.stdout.readline()
-                if not line and process.poll() is not None:
-                    break
-                    
-                if line:
-                    if line.startswith('#'):
+                try:
+                    line = output_queue.get(timeout=0.5)
+                    if line and line.startswith('#'):
                         downloaded += 1
                         if progress_callback:
                             progress_callback(downloaded, 0, f"Скачано файлов: {downloaded}")
+                except queue.Empty:
+                    if process.poll() is not None:
+                        break
+            
+            # Дождаться завершения треда
+            reader_thread.join(timeout=1.0)
             
             if process.returncode != 0:
                 raise Exception(f"gallery-dl завершился с кодом {process.returncode}")
@@ -155,7 +199,8 @@ class UniversalMediaDownloader:
             return {
                 'title': f"Gallery_{int(time.time())}",
                 'pages': downloaded,
-                'size': 0
+                'size': 0,
+                'file_path': output_dir
             }
         except Exception as e:
             raise Exception(f"Ошибка gallery-dl: {e}")

@@ -885,6 +885,11 @@ class MainWindow(QWidget):
                 )
 
                 if result:
+                    file_path = result.get('file_path')
+                    if file_path:
+                        with self.download_lock:
+                            if task_id in self.task_data_map:
+                                self.task_data_map[task_id]['file_path'] = file_path
                     self.signals.finished.emit(task_id, True, "")
                 else:
                     self.signals.finished.emit(task_id, False, "Ошибка неизвестна")
