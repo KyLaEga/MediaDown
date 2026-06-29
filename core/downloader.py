@@ -125,12 +125,14 @@ class UniversalMediaDownloader:
                     if progress_callback:
                         total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
                         downloaded_bytes = d.get('downloaded_bytes', 0)
+                        speed_bytes = d.get('speed')
+                        speed = float(speed_bytes) if speed_bytes is not None else 0.0
                         if total_bytes > 0:
                             percent = (downloaded_bytes / total_bytes) * 100
-                            progress_callback(int(percent), 100, f"Загрузка: {d.get('_percent_str', '0%')} - {d.get('_speed_str', '')}")
+                            progress_callback(int(percent), 100, f"Загрузка: {d.get('_percent_str', '0%')} - {d.get('_speed_str', '')}", speed)
             elif d['status'] == 'finished':
                 if progress_callback:
-                    progress_callback(100, 100, "Обработка файла...")
+                    progress_callback(100, 100, "Обработка файла...", 0.0)
 
         ydl_opts['progress_hooks'] = [hook]
 
@@ -244,7 +246,7 @@ class UniversalMediaDownloader:
 
     def _download_gallery(self, url, output_dir, progress_callback):
         if progress_callback:
-            progress_callback(0, 100, "Загрузка галереи...")
+            progress_callback(0, 100, "Загрузка галереи...", 0.0)
             
         cmd = [
             'gallery-dl',
@@ -285,7 +287,7 @@ class UniversalMediaDownloader:
                     if line and line.startswith('#'):
                         downloaded += 1
                         if progress_callback:
-                            progress_callback(downloaded, 0, f"Скачано файлов: {downloaded}")
+                            progress_callback(downloaded, 0, f"Скачано файлов: {downloaded}", 0.0)
                 except queue.Empty:
                     if process.poll() is not None:
                         break

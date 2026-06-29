@@ -18,7 +18,7 @@ from PySide6.QtGui import QDesktopServices
 
 class DownloadSignals(QObject):
     """Сигналы для общения фонового потока загрузки с главным UI потоком"""
-    progress = Signal(str, str, str)  # task_id, text, percent_str
+    progress = Signal(str, str, str, float)  # task_id, text, percent_str, speed_bytes_per_sec
     status = Signal(str, str)         # task_id, status_text
     finished = Signal(str, bool, str) # task_id, success, error_msg
     all_done = Signal()               # все загрузки завершены
@@ -122,6 +122,7 @@ class MainWindow(QWidget):
         self.worker_cond = threading.Condition(self.download_lock)
         self.task_items = {} # task_id -> QTreeWidgetItem
         self.task_data_map = {} # task_id -> task_data
+        self.task_speeds = {} # task_id -> speed_bytes_per_sec
         self.is_paused = False
         self.active_downloaders = {} # task_id -> downloader
         self.cancelled_tasks = set() # task_id -> bool
@@ -668,14 +669,16 @@ class MainWindow(QWidget):
             item.setToolTip(1, status_text)
             self.update_queue_count()
             
-    def update_progress(self, task_id, text, percent_str):
+    def update_progress(self, task_id, text, percent_str, speed=0.0):
         item = self.task_items.get(task_id)
         if item:
             item.setText(1, "Скачивается...")
             item.setToolTip(1, text)
             item.setText(2, percent_str)
+        self.task_speeds[task_id] = speed
 
     def download_finished(self, task_id, success, msg):
+        self.task_speeds.pop(task_id, None)
         item = self.task_items.get(task_id)
         if item:
             if success and msg.startswith("PARTIAL:"):
@@ -722,7 +725,16 @@ class MainWindow(QWidget):
                 self.lbl_status.setText("Все загрузки завершены")
                 self.progress_bar.setValue(100)
             else:
-                self.lbl_status.setText(f"Скачивается {active} из {total} (Выполнено: {completed})")
+                total_speed = sum(self.task_speeds.values())
+                if total_speed > 1024 * 1024:
+                    speed_str = f"{total_speed / (1024 * 1024):.1f} MB/s"
+                elif total_speed > 1024:
+                    speed_str = f"{total_speed / 1024:.1f} KB/s"
+                else:
+                    speed_str = f"{total_speed:.0f} B/s" if total_speed > 0 else ""
+                
+                speed_text = f" | Общая скорость: {speed_str}" if speed_str else ""
+                self.lbl_status.setText(f"Скачивается {active} из {total} (Выполнено: {completed}){speed_text}")
                 self.progress_bar.setValue(int(completed / total * 100))
             self.progress_bar.setToolTip(f"{completed} / {total}")
             
@@ -885,8 +897,8 @@ class MainWindow(QWidget):
             try:
                 self.signals.status.emit(task_id, "Скачивается...")
 
-                def progress_callback(percent, total, text):
-                    self.signals.progress.emit(task_id, text, f"{percent}%")
+                def progress_callback(percent, total, text, speed=0.0):
+                    self.signals.progress.emit(task_id, text, f"{percent}%", float(speed))
 
                 os.makedirs(task['output_dir'], exist_ok=True)
 
