@@ -35,11 +35,27 @@ jobs:
       run: |
         pyinstaller --name "MediaDown" --windowed --onefile main.py
         
+    - name: Package Windows
+      if: matrix.os == 'windows-latest'
+      run: Compress-Archive -Path dist\MediaDown.exe -DestinationPath MediaDown-Windows.zip
+
+    - name: Package macOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        cd dist
+        zip -r ../MediaDown-macOS.zip MediaDown.app
+
+    - name: Package Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        cd dist
+        zip ../MediaDown-Linux.zip MediaDown
+        
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: MediaDown-${{ matrix.os }}
-        path: dist/*
+        name: release-archive-${{ matrix.os }}
+        path: MediaDown-*.zip
         
   release:
     needs: build
@@ -49,12 +65,11 @@ jobs:
     steps:
     - uses: actions/download-artifact@v4
       with:
-        path: dist
+        path: artifacts
+        pattern: release-archive-*
+        merge-multiple: true
         
     - name: Release
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          dist/MediaDown-ubuntu-latest/*
-          dist/MediaDown-windows-latest/*
-          dist/MediaDown-macos-latest/*
+        files: artifacts/MediaDown-*.zip
